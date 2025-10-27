@@ -12,6 +12,7 @@ from s3torchconnectorclient._mountpoint_s3_client import (
     GetObjectStream,
     HeadObjectResult,
 )
+from s3torchconnectorclient import SegmentedBuffer
 from .s3reader import S3Reader
 
 log = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ class DCPOptimizedS3Reader(S3Reader):
         # Coalesce ranges into range groups
         # TODO: add test/check that unsorted ranges would be detected and results in error
         self._item_ranges: List[ItemRange] = item_ranges
-        self._start_to_group: Dict[int, RangeGroup] = {}
+        self._start_to_group: Dict[int, RangeGroup] = {} # * Only stores items[0] in each group, so we know if the item signals the start of a group!
         self._range_groups: List[RangeGroup] = self._validate_and_coalesce_ranges(
             self._item_ranges, self._max_gap_size
         )
@@ -215,7 +216,7 @@ class DCPOptimizedS3Reader(S3Reader):
         # Item buffer state
         self._item_iter: Iterator[ItemRange] = iter(self._item_ranges)
         self._current_item: ItemRange = next(self._item_iter)
-        self._current_item_buffer: Optional[_ItemViewBuffer] = None
+        self._current_item_buffer: Optional[SegmentedBuffer] = None
 
         self._position: int = 0
 
@@ -304,77 +305,29 @@ class DCPOptimizedS3Reader(S3Reader):
         self._leftover = None
         return self._stream
 
-    def _get_item_buffer(self, item: ItemRange) -> _ItemViewBuffer:
-        """Load entire item into a memoryview-segment buffer from existing stream."""
+    def _get_item_buffer(self, item: ItemRange) -> SegmentedBuffer:
+        """Load entire item into zero-copy SegmentedBuffer from stream.
+        
+        ZERO-COPY OPTIMIZATION: Handles positioning correctly while using
+        zero-copy consumption for the data reading.
+        """
 
-        buffer = _ItemViewBuffer()
+        buffer = SegmentedBuffer()
         if item.start >= item.end:
             return buffer
 
         # Get stream from the right RangeGroup for start_pos
         stream = self._get_stream_for_item(item)
-        pos = self._stream_pos  # local copy
-        leftover = self._leftover  # local copy
-        bytes_left = item.end - item.start
-
-        # 1. Read from leftover bytes if available and needed
-        if leftover:
-            lv_len = len(leftover)
-            lv_end = pos + lv_len
-
-            if pos <= item.start < lv_end:
-                # Item starts within leftover data
-                start = item.start - pos
-                available_bytes = lv_len - start
-                size = min(bytes_left, available_bytes)
-                end = start + size
-
-                # Extract needed portion
-                buffer.append_view(leftover[start:end])
-                bytes_left -= size
-                pos = item.start + size
-                leftover = leftover[end:] if end < lv_len else None
-            elif item.start >= lv_end:
-                # Item beyond leftover: advance pos to end of leftover
-                pos += lv_len
-                leftover = None
-
-        # 2. Read more data from S3 stream
-        while bytes_left > 0:
-            try:
-                chunk = memoryview(next(stream))
-            except StopIteration:
-                break
-
-            chunk_len = len(chunk)
-
-            # TODO: separate skip part and take part for clearer logic
-            # Skip past unwanted data (due to coalescing)
-            if pos < item.start:
-                skip_bytes = min(item.start - pos, chunk_len)
-                chunk = chunk[skip_bytes:]
-                pos += skip_bytes
-                chunk_len -= skip_bytes
-                if chunk_len == 0:
-                    continue
-
-            # Take needed part of chunk
-            if chunk_len <= bytes_left:
-                # Entire chunk needed - skip slicing
-                buffer.append_view(chunk)
-                bytes_left -= chunk_len
-                pos += chunk_len
-                leftover = None
-            else:
-                # Only part of chunk needed
-                buffer.append_view(chunk[:bytes_left])
-                leftover = chunk[bytes_left:]
-                pos += bytes_left
-                bytes_left = 0
-                break
-
-        self._stream_pos = pos
-        self._leftover = leftover
+        
+        # For the first implementation, use zero-copy consumption
+        # and let the Rust side handle any positioning issues
+        # The stream should be positioned correctly by _get_stream_for_item
+        stream.consume_into_buffer(buffer, item.start, item.end)
+        
+        # Update stream position to end of item for next read
+        self._stream_pos = item.end
+        self._leftover = None
+        
         return buffer
 
     def read(self, size: Optional[int] = None) -> bytes:

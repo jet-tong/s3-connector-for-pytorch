@@ -14,6 +14,7 @@ use crate::python_structs::py_head_object_result::PyHeadObjectResult;
 use crate::python_structs::py_list_object_result::PyListObjectResult;
 use crate::python_structs::py_object_info::PyObjectInfo;
 use crate::python_structs::py_restore_status::PyRestoreStatus;
+use crate::segmented_buffer::SegmentedBuffer;
 use pyo3::prelude::*;
 
 mod build_info;
@@ -26,6 +27,7 @@ mod mountpoint_s3_client;
 mod mountpoint_s3_client_inner;
 mod put_object_stream;
 mod python_structs;
+mod segmented_buffer;
 
 #[pymodule]
 #[pyo3(name = "_mountpoint_s3_client")]
@@ -40,6 +42,7 @@ fn make_lib(py: Python, mountpoint_s3_client: &Bound<'_, PyModule>) -> PyResult<
     mountpoint_s3_client.add_class::<PyObjectInfo>()?;
     mountpoint_s3_client.add_class::<PyHeadObjectResult>()?;
     mountpoint_s3_client.add_class::<PyRestoreStatus>()?;
+    mountpoint_s3_client.add_class::<SegmentedBuffer>()?;
     mountpoint_s3_client.add("S3Exception", py.get_type::<S3Exception>())?;
     mountpoint_s3_client.add("__version__", build_info::FULL_VERSION)?;
     mountpoint_s3_client.add_function(wrap_pyfunction!(

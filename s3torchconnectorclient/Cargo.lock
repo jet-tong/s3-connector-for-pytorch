@@ -1194,6 +1194,7 @@ name = "s3torchconnectorclient"
 version = "1.4.3"
 dependencies = [
  "built",
+ "bytes",
  "futures",
  "log",
  "mountpoint-s3-client",
