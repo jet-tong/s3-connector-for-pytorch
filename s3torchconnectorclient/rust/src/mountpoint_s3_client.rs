@@ -9,6 +9,7 @@ use mountpoint_s3_client::config::{
 use mountpoint_s3_client::config::{Allocator, Uri};
 use mountpoint_s3_client::types::{GetObjectParams, HeadObjectParams, PutObjectParams};
 use mountpoint_s3_client::user_agent::UserAgent;
+use mountpoint_s3_client::config::{MemoryPool, MetaRequestType};
 use mountpoint_s3_client::{ObjectClient, S3CrtClient};
 use mountpoint_s3_crt_sys::{aws_thread_join_all_managed, aws_thread_set_managed_join_timeout_ns};
 use pyo3::marker::Python;
@@ -25,6 +26,31 @@ use crate::put_object_stream::PutObjectStream;
 
 use crate::build_info;
 use crate::python_structs::py_head_object_result::PyHeadObjectResult;
+
+
+// Create a simple memory pool implementation
+#[derive(Debug, Clone)]
+struct SimplePool {
+    _buffer_size: usize,
+}
+
+impl SimplePool {
+    fn new(_buffer_size: usize) -> Self {
+        Self { _buffer_size }
+    }
+}
+
+impl MemoryPool for SimplePool {
+    type Buffer = Box<[u8]>;
+
+    fn get_buffer(&self, size: usize, _type: MetaRequestType) -> Self::Buffer {
+        vec![0u8; size].into_boxed_slice()
+    }
+
+    fn trim(&self) -> bool {
+        false
+    }
+}
 
 #[pyclass(
     name = "MountpointS3Client",
@@ -134,11 +160,14 @@ impl MountpointS3Client {
             // If we unpickle a client, we should not append the suffix again
             user_agent_string = &user_agent_prefix;
         }
+        let pool = SimplePool::new(part_size);
 
         let config = S3ClientConfig::new()
             .user_agent(UserAgent::new(Some(user_agent_string.to_owned())))
             .throughput_target_gbps(throughput_target_gbps)
-            .part_size(part_size)
+            .read_part_size(part_size)
+            .write_part_size(part_size)
+            .memory_pool(pool)
             .auth_config(auth_config)
             .endpoint_config(endpoint_config)
             .max_attempts(NonZeroUsize::try_from(max_attempts).expect("max_attempts must be > 0"));
