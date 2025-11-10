@@ -3,6 +3,7 @@
 
 import bisect
 import logging
+import os
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Union, Iterator, Dict, cast
 from io import SEEK_SET, SEEK_CUR, SEEK_END
@@ -254,6 +255,13 @@ class DCPOptimizedS3Reader(S3Reader):
 
         self._position: int = 0
 
+        # For debug logs to analyse read patterns
+        self._filename = os.path.basename(self._key)
+        self._pid: int = os.getpid()
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=read_initialized, reader=dcp_optimized"
+        )
+
     @property
     def bucket(self) -> str:
         return self._bucket
@@ -483,6 +491,11 @@ class DCPOptimizedS3Reader(S3Reader):
             ValueError: If position is outside valid DCP ranges, and if size is None or negative (full file reads not supported).
             S3Exception: An error occurred accessing S3.
         """
+
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=read, position={self._position}, size={size}"
+        )
+
         if size is None:
             raise ValueError("Size cannot be None; full read not supported")
         if not isinstance(size, int):
@@ -521,6 +534,11 @@ class DCPOptimizedS3Reader(S3Reader):
             TypeError: If buf is not writable.
             S3Exception: An error occurred accessing S3.
         """
+        buf_size = len(buf)
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=readinto, position={self._position}, size={buf_size}"
+        )
+
         item = self._find_item_for_position(self._position)
 
         if item is not self._current_item or self._current_item_buffer is None:

@@ -1,7 +1,9 @@
 #  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #  // SPDX-License-Identifier: BSD
 
+import logging
 import io
+import os
 from functools import cached_property
 from io import SEEK_CUR, SEEK_END, SEEK_SET
 from typing import Callable, Optional, Iterator, Union
@@ -15,6 +17,8 @@ from s3torchconnectorclient._mountpoint_s3_client import (
 from .s3reader import S3Reader
 
 DEFAULT_BUFFER_SIZE = 8 * 1024 * 1024  # 8MB
+
+log = logging.getLogger(__name__)
 
 
 class RangedS3Reader(S3Reader):
@@ -53,10 +57,12 @@ class RangedS3Reader(S3Reader):
             raise ValueError("Bucket should be specified")
         self._bucket = bucket
         self._key = key
+        self._filename = os.path.basename(self._key)
         self._get_object_info = get_object_info
         self._get_stream = get_stream
         self._size: Optional[int] = None
         self._position: int = 0
+        self._pid: int = os.getpid()
 
         # Buffer Parameters
         self._buffer_size: int
@@ -77,6 +83,10 @@ class RangedS3Reader(S3Reader):
         # Track buffer byte range
         self._buffer_start: int = 0
         self._buffer_end: int = 0
+
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=read_initialized, reader=ranged, buffer_size={self._buffer_size}"
+        )
 
     @property
     def bucket(self) -> str:
@@ -148,8 +158,7 @@ class RangedS3Reader(S3Reader):
         for chunk in self._get_stream(start, end):
             # Safeguard for buffer overflow (stream size > length)
             chunk_size = min(len(chunk), length - bytes_read)
-            chunk_view = memoryview(chunk)
-            view[bytes_read : bytes_read + chunk_size] = chunk_view[:chunk_size]
+            view[bytes_read : bytes_read + chunk_size] = chunk[:chunk_size]
             bytes_read += chunk_size
             # Exit if finished reading
             if bytes_read == length:
@@ -221,6 +230,9 @@ class RangedS3Reader(S3Reader):
             )
 
         buf_size = len(buf)
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=readinto, position={self._position}, size={buf_size}"
+        )
         if self._position_at_end() or buf_size == 0:
             # If no bytes are available or no place to write data, zero should be returned
             return 0
@@ -257,6 +269,10 @@ class RangedS3Reader(S3Reader):
             # Invariant: if we're at EOF, it doesn't matter what `size` is, we'll always return no data and have no
             # side effect.
             return b""
+
+        log.debug(
+            f"file={self._filename}, pid={self._pid}, type=read, position={self._position}, size={size}"
+        )
 
         # Calculate the range to request
         start = self._position
