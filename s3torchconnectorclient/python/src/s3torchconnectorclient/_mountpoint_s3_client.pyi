@@ -13,6 +13,7 @@ class MountpointS3Client:
     unsigned: Optional[bool]
     force_path_style: Optional[bool]
     max_attempts: int
+    requester_pays: bool
     user_agent_prefix: str
     endpoint: str
 
@@ -27,6 +28,7 @@ class MountpointS3Client:
         endpoint: Optional[str] = None,
         force_path_style: Optional[bool] = False,
         max_attempts: int = 10,
+        requester_pays: bool = False,
     ): ...
     def get_object(
         self,
@@ -55,18 +57,19 @@ class MockMountpointS3Client:
     unsigned: bool
     force_path_style: bool
     max_attempts: int
+    requester_pays: bool
 
     def __init__(
         self,
         region: str,
         bucket: str,
-        endpoint: str = "",
         throughput_target_gbps: float = 10.0,
         part_size: int = 8 * 1024 * 1024,
         user_agent_prefix: str = "mock_client",
         unsigned: bool = False,
         force_path_style: bool = False,
         max_attempts: int = 10,
+        requester_pays: bool = False,
     ): ...
     def create_mocked_client(self) -> MountpointS3Client: ...
     def add_object(self, key: str, data: bytes) -> None: ...

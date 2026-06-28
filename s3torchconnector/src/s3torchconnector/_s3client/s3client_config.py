@@ -18,8 +18,11 @@ class S3ClientConfig:
         8MiB by default (may change in future).
     unsigned(bool): Set to true to disable signing S3 requests.
     force_path_style(bool): forceful path style addressing for S3 client.
-    max_attempts(int): amount of retry attempts for retrieable errors.
+    max_attempts(int): amount of retry attempts for retryable errors.
     profile(str): Profile name to use for S3 authentication.
+    requester_pays(bool): Enable access to requester pays buckets (where the caller pays
+        for data transfer). Safe to use on standard buckets (the header is ignored).
+        Cannot be combined with unsigned=True (requester pays requires authenticated requests).
     """
 
     throughput_target_gbps: float = 10.0
@@ -28,3 +31,11 @@ class S3ClientConfig:
     force_path_style: bool = False
     max_attempts: int = 10
     profile: Optional[str] = None
+    requester_pays: bool = False
+
+    def __post_init__(self):
+        if self.requester_pays and self.unsigned:
+            raise ValueError(
+                "requester_pays=True requires authenticated requests and "
+                "cannot be combined with unsigned=True"
+            )

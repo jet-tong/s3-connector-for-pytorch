@@ -127,6 +127,7 @@ def test_s3_client_custom_config(
     assert s3_client._client.throughput_target_gbps == throughput_target_gbps
     assert s3_client._client.unsigned is False
     assert s3_client._client.max_attempts == max_attempts
+    assert s3_client._client.requester_pays is False
 
 
 @pytest.mark.parametrize(
@@ -166,6 +167,14 @@ def test_force_path_style_s3_client():
         s3client_config=S3ClientConfig(force_path_style=True),
     )
     assert s3_client._client.force_path_style is True
+
+
+def test_requester_pays_s3_client():
+    s3_client = S3Client(
+        region=TEST_REGION,
+        s3client_config=S3ClientConfig(requester_pays=True),
+    )
+    assert s3_client._client.requester_pays is True
 
 
 def test_s3_client_different_configs():

@@ -1,5 +1,6 @@
 #  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #  // SPDX-License-Identifier: BSD
+import pytest
 from hypothesis import given, example
 from hypothesis.strategies import integers, floats
 
@@ -14,6 +15,7 @@ def test_default():
     assert config.force_path_style is False
     assert config.max_attempts == 10
     assert config.profile is None
+    assert config.requester_pays is False
 
 
 def test_enable_force_path_style():
@@ -62,3 +64,13 @@ def test_custom_setup(part_size: int, throughput_target_gbps: float, max_attempt
     assert config.part_size == part_size
     assert config.throughput_target_gbps == throughput_target_gbps
     assert config.max_attempts == max_attempts
+
+
+def test_enable_requester_pays():
+    config = S3ClientConfig(requester_pays=True)
+    assert config.requester_pays is True
+
+
+def test_requester_pays_with_unsigned_raises():
+    with pytest.raises(ValueError, match="cannot be combined with unsigned=True"):
+        S3ClientConfig(requester_pays=True, unsigned=True)

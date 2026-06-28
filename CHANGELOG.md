@@ -1,3 +1,8 @@
+## TBD
+
+### New features
+* Add `requester_pays` parameter to `S3ClientConfig` for accessing requester pays buckets (#430)
+
 ## v1.5.0 (February 20, 2026)
 
 ### New features
