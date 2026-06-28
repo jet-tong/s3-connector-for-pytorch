@@ -1,178 +1,194 @@
-# DEVELOPMENT
+# Development
 
-To develop `s3torchconnector`, you need to have Python, `pip` and `python-venv` installed. 
+## Prerequisites
 
-`s3torchconnector` uses `s3torchconnectorclient` as the underlying S3 Connector. `s3torchconnectorclient` is a 
-Python wrapper around MountpointS3Client that uses S3 CRT to optimize performance of S3 read/write.
-Since MountpointS3Client is implemented in Rust, for development and building from source, you will need to install 
-`clang`, `cmake` and rust compiler (as detailed below). 
+### Linux (Ubuntu/Debian)
 
-Note: CLI commands for Ubuntu/Debian 
-#### Install Python 3.x and pip
 ```shell
-sudo apt update
-sudo apt install python3
-sudo apt install python3-pip
-```
-#### Clone project
-```shell
-  git clone git@github.com:awslabs/s3-connector-for-pytorch.git
-```
-#### Create a Python virtual environment
-```shell
-  cd /path/to/your/project
-  python3 -m venv virtual-env
-  source virtual-env/bin/activate
-```
-#### Install clang (needed to build the client)
-```shell
-  sudo apt install clang
-```
-#### Install cmake (needed to build the client)
-```shell
-  sudo apt install cmake
-```
-#### Install Rust compiler (needed to build the client)
-```shell
-  curl https://sh.rustup.rs -sSf | sh
-  source "$HOME/.cargo/env"
-```
-#### Install project modules in editable mode
-```shell
-  pip install -e s3torchconnectorclient
-  pip install -e s3torchconnector
+sudo apt update && sudo apt install python3 python3-pip python3-venv clang cmake pkg-config
 ```
 
+### macOS
 
-When you make changes to the Rust code, you need to run `pip install -e s3torchconnectorclient` before changes will 
-be viewable from Python.
+```shell
+brew install python3 cmake
+xcode-select --install  # provides clang
+```
 
+## Getting Started
 
-### Licensing
-When developing, ensure to create license headers at the top of each file. This can be automated with Pycharm/Clion 
-with the following configuration:
+### Clone
 
-Go to the settings, and find the 'Copyright profiles' section. Create a new one with the following text:
+```shell
+git clone https://github.com/awslabs/s3-connector-for-pytorch.git
+cd s3-connector-for-pytorch
+```
 
-> Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-> 
-> // SPDX-License-Identifier: BSD
+### Virtual environment
 
-Then under the 'Copyright' section, create a new scope covering 'all', and assign your new copyright profile.
+```shell
+python3 -m venv venv
+source venv/bin/activate       # bash/zsh
+source venv/bin/activate.fish  # fish
+```
 
-### Making a commit
+### Install Rust toolchain
 
-Our CI uses `clippy` to lint Rust code changes. Use `cargo clippy --all-targets --all-features` to lint Rust before
-pushing new Rust commits.
+```shell
+curl https://sh.rustup.rs -sSf | sh
+source "$HOME/.cargo/env"
+```
 
-For Python code changes, run 
-```bash
+The repo pins Rust to a specific version via `s3torchconnectorclient/rust-toolchain.toml`; rustup will auto-install it on first `cargo` invocation.
+
+### Install in editable mode
+
+```shell
+pip install -e "s3torchconnectorclient[test]"
+pip install -e "s3torchconnector[test]"
+```
+
+Additional extras for specific test suites:
+
+- `s3torchconnector[dcp-test]` — Distributed Checkpoint tests
+- `s3torchconnector[lightning-tests]` — PyTorch Lightning tests
+- `s3torchconnector[e2e]` — End-to-end integration tests
+
+### Rebuilding after Rust changes
+
+When you modify Rust code, rebuild before running Python:
+
+```shell
+pip install -e s3torchconnectorclient
+```
+
+## Testing
+
+### Unit tests
+
+No AWS credentials required.
+
+```shell
+pytest s3torchconnectorclient/python/tst/unit
+pytest s3torchconnector/tst/unit --ignore-glob='**/lightning/**' --ignore-glob='**/dcp/**'
+```
+
+**Lightning unit tests:**
+
+```shell
+pip install -e 's3torchconnector[test,lightning-tests]'
+pytest s3torchconnector/tst/unit/lightning
+```
+
+**DCP unit tests:**
+
+```shell
+pip install -e 's3torchconnector[test,dcp-test]'
+pytest s3torchconnector/tst/unit/dcp
+```
+
+### Integration / e2e tests
+
+Require AWS credentials and an S3 bucket. Set the following environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `CI_REGION` | AWS region (e.g. `us-east-1`) |
+| `CI_BUCKET` | S3 bucket name |
+| `CI_PREFIX` | Key prefix for test objects (must be empty or end with `/`) |
+| `CI_STORAGE_CLASS` | Empty for Standard, `EXPRESS_ONEZONE` for directory buckets |
+
+```shell
+pip install -e 's3torchconnector[test,e2e]'
+pytest s3torchconnectorclient/python/tst/integration
+pytest s3torchconnector/tst/e2e
+```
+
+### Running tests in parallel
+
+```shell
+pip install pytest-xdist
+pytest -n auto
+```
+
+> **Note:** Do not use `-n auto` for distributed training tests — concurrent runs cause port clashes.
+
+## Linting
+
+### Rust
+
+From the repo root:
+
+```shell
+cargo clippy --all-targets --all-features --manifest-path s3torchconnectorclient/Cargo.toml
+```
+
+### Python
+
+```shell
 black --verbose .
 flake8 s3torchconnector/ --count --select=E9,F63,F7,F82 --show-source --statistics
 flake8 s3torchconnectorclient/python --count --select=E9,F63,F7,F82 --show-source --statistics
 mypy s3torchconnector/src
 mypy s3torchconnectorclient/python/src
 ```
- to lint.
 
-To run mypy without `lightning` installed, run
-```bash
+To run mypy without Lightning installed:
+
+```shell
 mypy s3torchconnector/src --exclude s3torchconnector/src/s3torchconnector/lightning
 mypy s3torchconnectorclient/python/src
 ```
 
-### Debugging
+## Debugging
 
-Either a Python or GDB style debugger will be useful here.
+### Rust (GDB)
 
-To use a GDB debugger from Rust, just run the Rust test in question with the debugger enabled.
+Run the Rust test in question with the GDB debugger enabled directly.
 
-To use a GDB debugger from Python, you need to create a 'Custom Build Application'. 
-Fill in the path of the Python executable in your virtual environment (`venv/bin/python`) and fill in the script name 
-as the program argument.
-Then put a breakpoint in the Rust/C code and try running it.
+### Python + Rust (GDB)
 
-#### Enabling Debug Logging
-The [Python logger](https://docs.python.org/3/library/logging.html) handles logging messages from the Python-side 
-of our implementation.
-For debug purposes, you can also enable the logs for our Rust components, which are off by default. 
-These are handled by [tracing_subscriber](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/) and can be 
-configured through the following environment variables:
-- `S3_TORCH_CONNECTOR_DEBUG_LOGS` - Configured similarly to the
-[RUST_LOG](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) variable for
-filtering logs from our Rust components. This includes finer granularity logs from 
-[AWS Common Runtime (CRT)](https://docs.aws.amazon.com/sdkref/latest/guide/common-runtime.html).
-**Please note that the AWS CRT logs are very noisy. We recommend to filter them out by appending `"awscrt=off"` to
-your S3_TORCH_CONNECTOR_DEBUG_LOGS setup.**
-- `S3_TORCH_CONNECTOR_LOGS_DIR_PATH` - The path to a local directory where you have write permissions. 
-When configured, the logs from the Rust components will be appended to a file at this location. 
-This will result in a log file located at 
-`${S3_TORCH_CONNECTOR_LOGS_DIR_PATH}/s3torchconnectorclient.log.yyyy-MM-dd-HH`, rolled on an hourly basis. 
-The log messages of the latest run are appended to the end of the most recent log file.
+Create a "Custom Build Application" run configuration. Set the executable path to your virtual environment's Python binary (`venv/bin/python`) and the script name as the program argument. Place breakpoints in Rust/C code and run.
 
-**Examples**
-- Configure INFO level logs to be written to STDOUT:
-```sh
-  export S3_TORCH_CONNECTOR_DEBUG_LOGS=info
+### Runtime logging
+
+For runtime debug logging (Rust/CRT log levels, log file output), see [Troubleshooting — Debug Logging](docs/TROUBLESHOOTING.md#debug-logging).
+
+## Updating mountpoint-s3-client
+
+1. Edit the version in `s3torchconnectorclient/Cargo.toml`
+2. Run `cargo clippy --all-targets --all-features --manifest-path s3torchconnectorclient/Cargo.toml` to update `Cargo.lock`
+3. Rebuild: `pip install -e s3torchconnectorclient`
+4. Run unit tests to validate
+
+## Building Wheels Locally
+
+Uses [`cibuildwheel`](https://cibuildwheel.readthedocs.io/). Requires Docker on Linux (or Finch on macOS).
+
+```shell
+pip install cibuildwheel
+cibuildwheel --only cp312-manylinux_x86_64 s3torchconnectorclient
 ```
 
-- Enable TRACE level logs (most verbose) to be written at `/tmp/s3torchconnector-logs`:
-```sh
-  export S3_TORCH_CONNECTOR_DEBUG_LOGS=trace
-  export S3_TORCH_CONNECTOR_LOGS_DIR_PATH="/tmp/s3torchconnector-logs"
-```
-After running your script, you will find the logs under `/tmp/s3torchconnector-logs`.
-The file will include AWS CRT logs. 
+See `.github/workflows/wheels.yml` for the full CI wheel build configuration.
 
-- Enable TRACE level logs with AWS CRT logs filtered out, written at `/tmp/s3torchconnector-logs`:
-```sh
-  export S3_TORCH_CONNECTOR_DEBUG_LOGS=trace,awscrt=off
-  export S3_TORCH_CONNECTOR_LOGS_DIR_PATH="/tmp/s3torchconnector-logs"
-```
+## Licensing
 
-- Set up different levels for inner components:
-```sh
-  export S3_TORCH_CONNECTOR_DEBUG_LOGS=trace,mountpoint_s3_client=debug,awscrt=error
-```
-This will set the log level to TRACE by default, DEBUG for mountpoint-s3-client and ERROR for AWS CRT.
+Ensure all new files have a copyright header:
 
-For more examples please check the
-[env_logger documentation](https://docs.rs/env_logger/latest/env_logger/#enabling-logging).
+> Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+>
+> // SPDX-License-Identifier: BSD
 
-### Fine Tuning
-Using S3ClientConfig you can set up the following parameters for the underlying S3 client: 
-* `throughput_target_gbps(float)`: Throughput target in Gigabits per second (Gbps) that we are trying to reach.
-  **10.0 Gbps** by default (may change in future).
+**IDE setup (PyCharm/CLion):** Go to Settings → Copyright Profiles, create a profile with the text above. Then under Copyright, create a scope covering "All" and assign the profile.
 
-* `part_size(int)`: Size (bytes) of file parts that will be uploaded/downloaded.
-  Note: for saving checkpoints, the inner client will adjust the part size to meet the service limits.
-  (max number of parts per upload is 10,000, minimum upload part size is 5 MiB).
-  Part size must have **values between 5MiB and 5GiB.** Is set by default to **8MiB** (may change in future).
+## Configuration
 
-* `unsigned(bool)`: Set to true to disable signing S3 requests.
+For runtime configuration (throughput targets, part size, unsigned requests), see [Configuration](docs/CONFIGURATION.md).
 
-* `max_attempts(int)`: Number of retries for retriable errors
+## Further Reading
 
-For example, this can be passed in like: 
-```py
-from s3torchconnector import S3MapDataset, S3ClientConfig
-
-# Setup for DATASET_URI and REGION.
-...
-# Setting part_size to 5 MiB, throughput_target_gbps to 15 Gbps and max_attempts to 5
-config = S3ClientConfig(part_size=5 * 1024 * 1024, throughput_target_gbps=15, max_attempts=5)
-# Passing this on to an S3MapDataset.
-s3_map_dataset = S3MapDataset.from_prefix(DATASET_URI, region=REGION, s3client_config=config)
-# Updating the configuration for checkpoints.
-# Please note that you can also pass in a different configuration to checkpoints.
-s3_checkpoint = S3Checkpoint(region=REGION, s3client_config=config)
-# Works similarly for Lightning checkpoints.
-s3_lightning_checkpoint = S3LightningCheckpoint(region=REGION, s3client_config=config)
-
-# Disable signing to make requests without AWS credentials
-config = S3ClientConfig(unsigned=True)
-s3_map_dataset = S3MapDataset.from_prefix(DATASET_URI, region=REGION, s3client_config=config)
-```
-
-**When modifying the default values for these flags, we strongly recommend to run benchmarking to ensure you are not
-introducing a performance regression.**
+- [Configuration](docs/CONFIGURATION.md) — S3 client tuning, credentials, S3 Express
+- [Troubleshooting](docs/TROUBLESHOOTING.md) — Debug logging, common issues
+- [Benchmarking](s3torchbenchmarking/README.md) — Performance testing
+- [Contributing](CONTRIBUTING.md) — How to submit changes
