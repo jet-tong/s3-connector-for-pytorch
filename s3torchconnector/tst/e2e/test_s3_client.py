@@ -29,6 +29,26 @@ def test_no_access_objects_without_profile(empty_directory):
         put_stream.write(HELLO_WORLD_DATA)
 
 
+def test_requester_pays_access(empty_directory):
+    # Note: This test requires a bucket in a different AWS account
+    rp_bucket = os.getenv("CI_REQUESTER_PAYS_BUCKET")
+    if not rp_bucket:
+        pytest.skip("No requester-pays bucket configured")
+
+    # Without requester_pays — cross-account access should fail with 403
+    client_no_rp = S3Client(empty_directory.region)
+    with pytest.raises(S3Exception):
+        client_no_rp.head_object(rp_bucket, "test-object.txt")
+
+    # With requester_pays — should succeed
+    client_rp = S3Client(
+        empty_directory.region,
+        s3client_config=S3ClientConfig(requester_pays=True),
+    )
+    result = client_rp.head_object(rp_bucket, "test-object.txt")
+    assert result is not None
+
+
 def test_access_objects_with_profile(empty_directory):
     if empty_directory.profile_bucket is None:
         pytest.skip("No profile bucket configured")

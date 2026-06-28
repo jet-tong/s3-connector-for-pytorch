@@ -47,6 +47,7 @@ jobs:
             endpoint-url: ${{ vars.S3_CUSTOM_ENDPOINT_URL }}
             profile-role: ${{ vars.PROFILE_IAM_ROLE }}
             profile-bucket: ${{ vars.S3_PROFILE_BUCKET }}
+            requester-pays-bucket: ${{ vars.S3_REQUESTER_PAYS_BUCKET }}
           - name: "S3 Express"
             bucket: ${{ vars.S3_EXPRESS_BUCKET }}
             region: ${{ vars.S3_EXPRESS_REGION }}
@@ -54,6 +55,7 @@ jobs:
             endpoint-url: ""
             profile-role: ${{ vars.PROFILE_IAM_ROLE }}
             profile-bucket: ${{ vars.S3_EXPRESS_PROFILE_BUCKET }}
+            requester-pays-bucket: ""
         exclude:
           # For Python 3.13/3.14, PyTorch does not support macos-15-intel/x86_64, only macos-14/arm64.
           - runner: macos-15-intel
@@ -121,6 +123,7 @@ jobs:
           CI_STORAGE_CLASS=${{ matrix.test-run.storage-class }} \
           CI_PROFILE_ROLE=${{ matrix.test-run.profile-role }} \
           CI_PROFILE_BUCKET=${{ matrix.test-run.profile-bucket }} \
+          CI_REQUESTER_PAYS_BUCKET=${{ matrix.test-run.requester-pays-bucket }} \
           pytest s3torchconnector/tst/e2e --ignore-glob '*/**/test_e2e_s3_lightning_checkpoint.py' --ignore-glob '*/**/dcp' --ignore-glob '*/**/test_distributed_training.py' -n auto
 
       - name: s3torchconnector ${{ matrix.test-run.name }} distributed training integration tests

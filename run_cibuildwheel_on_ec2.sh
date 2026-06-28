@@ -1,6 +1,6 @@
-if [ $# -ne 10 ]; then
-    echo "Invalid number of parameters, you need to provide role name, region name, bucket name, prefix, express region name and express bucket name, custom endpoint for s3 standard, auth profile arn and buckets names for testing auth profile"
-    echo "Usage: $0 S3RoleName us-west-2 s3torchconnector-test-bucket-name prefix-name/ us-east-1 s3torchconnectorclient-express-bucket-name https://s3.amazon.com arn:aws:iam::XXXXXXXXXXX:role/RoleName profile-test-bucket-name profile-test-express-bucket-name "
+if [ $# -ne 11 ]; then
+    echo "Invalid number of parameters, you need to provide role name, region name, bucket name, prefix, express region name and express bucket name, custom endpoint for s3 standard, auth profile arn, buckets names for testing auth profile, and requester pays bucket name"
+    echo "Usage: $0 S3RoleName us-west-2 s3torchconnector-test-bucket-name prefix-name/ us-east-1 s3torchconnectorclient-express-bucket-name https://s3.amazon.com arn:aws:iam::XXXXXXXXXXX:role/RoleName profile-test-bucket-name profile-test-express-bucket-name requester-pays-bucket-name"
     exit 1
 fi
 
@@ -14,6 +14,7 @@ S3_CUSTOM_ENDPOINT_URL=$7
 PROFILE_IAM_ROLE=$8
 S3_PROFILE_BUCKET=$9
 S3_EXPRESS_PROFILE_BUCKET=${10}
+S3_REQUESTER_PAYS_BUCKET=${11}
 
 FILE_NAME="tmp_cred.json"
 # Set metadata token TTL to 6 hours
@@ -36,5 +37,6 @@ export S3_CUSTOM_ENDPOINT_URL=${S3_CUSTOM_ENDPOINT_URL}
 export PROFILE_IAM_ROLE=${PROFILE_IAM_ROLE}
 export S3_PROFILE_BUCKET=${S3_PROFILE_BUCKET}
 export S3_EXPRESS_PROFILE_BUCKET=${S3_EXPRESS_PROFILE_BUCKET}
+export S3_REQUESTER_PAYS_BUCKET=${S3_REQUESTER_PAYS_BUCKET}
 
 cibuildwheel --output-dir wheelhouse --platform linux s3torchconnectorclient
